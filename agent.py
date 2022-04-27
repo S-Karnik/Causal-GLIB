@@ -1,10 +1,15 @@
 from curiosity_modules import create_curiosity_module
 from operator_learning_modules import create_operator_learning_module
 from planning_modules import create_planning_module
-from pddlgym.structs import Anti
+from planning_modules.base_planner import PlannerTimeoutException, \
+    NoPlanFoundException
+from run_gym_iter import get_next_state, run_plan
+from settings import AgentConfig as ac
+from pddlgym.structs import Anti, State
 import time
 import numpy as np
-
+import random
+from pddlgym.parser import PDDLProblemParser
 
 class Agent:
     """An agent interacts with an env, learns PDDL operators, and plans.
@@ -20,12 +25,13 @@ class Agent:
     """
     def __init__(self, domain_name, action_space, observation_space,
                  curiosity_module_name, operator_learning_name,
-                 planning_module_name):
+                 planning_module_name, val_env):
         self.curiosity_time = 0.0
         self.domain_name = domain_name
         self.curiosity_module_name = curiosity_module_name
         self.operator_learning_name = operator_learning_name
         self.planning_module_name = planning_module_name
+        self.action_space = action_space
         # The main objective of the agent is to learn good operators
         self.learned_operators = set()
         # The operator learning module learns operators. It should update the
@@ -38,10 +44,13 @@ class Agent:
             action_space, observation_space)
         # The curiosity module dictates how actions are selected during training
         # It may use the learned operators to select actions
+        self._val_env = val_env
+        self._val_env_goals = [prob.goal for prob in val_env.problems]
+
         self._curiosity_module = create_curiosity_module(
             curiosity_module_name, action_space, observation_space,
             self._planning_module, self.learned_operators,
-            self._operator_learning_module, domain_name)
+            self._operator_learning_module, domain_name, self.get_all_current_rewards_val_tasks, self.compute_effects)
 
     ## Training time methods
     def get_action(self, state):
@@ -54,7 +63,7 @@ class Agent:
 
     def observe(self, state, action, next_state):
         # Get effects
-        effects = self._compute_effects(state, next_state)
+        effects = self.compute_effects(state, next_state)
         # Add data
         self._operator_learning_module.observe(state, action, effects)
         # Some curiosity modules might use transition data
@@ -69,6 +78,7 @@ class Agent:
             start_time = time.time()
             self._curiosity_module.learning_callback()
             self.curiosity_time += time.time()-start_time
+        # import ipdb; ipdb.set_trace()
             # for pred, dt in self._operator_learning_module.learned_dts.items():
             #     print(pred)
             #     print(dt.print_conditionals())
@@ -84,7 +94,7 @@ class Agent:
         self.curiosity_time += time.time()-start_time
 
     @staticmethod
-    def _compute_effects(state, next_state):
+    def compute_effects(state, next_state):
         positive_effects = {e for e in next_state.literals - state.literals}
         negative_effects = {Anti(ne) for ne in state.literals - next_state.literals}
         return positive_effects | negative_effects
@@ -93,3 +103,53 @@ class Agent:
     def get_policy(self, problem_fname):
         """Get a plan given the learned operators and a PDDL problem file."""
         return self._planning_module.get_policy(problem_fname)
+
+    def _create_problem_pddl(self, state, goal, prefix):
+        fname = "tmp/{}_problem_{}.pddl".format(
+            prefix, random.randint(0, 9999999))
+        objects = state.objects
+        all_action_lits = self.action_space.all_ground_literals(state)
+        initial_state = state.literals | all_action_lits
+        problem_name = "{}_problem".format(prefix)
+        domain_name = self._planning_module.domain_name
+        PDDLProblemParser.create_pddl_file(fname, objects, initial_state,
+                                           problem_name, domain_name, goal)
+
+        return fname
+
+    def get_all_current_rewards_val_tasks(self, initial_state, sol_name, rand_state, reset_eval=False):
+        rewards = []
+        for i in range(len(self._val_env.problems)):
+            # import ipdb; ipdb.set_trace()
+            goal = self._val_env.problems[i].goal
+            if reset_eval:
+                initial_state = State(frozenset(self._val_env.problems[i].initial_state),
+                              frozenset(self._val_env.problems[i].objects),
+                              self._val_env.problems[i].goal)
+                 
+            else:
+                goal_blocks = frozenset(sum([l.variables for l in goal.literals], []))
+                if not goal_blocks.issubset(initial_state.objects):
+                    continue
+                initial_state = State(initial_state.literals, initial_state.objects, goal)
+            rewards.append(self._get_current_reward_val_tasks(initial_state, goal, sol_name, rand_state))
+                
+        return rewards
+
+    def _get_current_reward_val_tasks(self, initial_state, goal, sol_name, rand_state):
+        problem_fname = self._create_problem_pddl(initial_state, goal, sol_name)
+        # print(problem_fname)
+        try:
+            # import ipdb; ipdb.set_trace()
+            plan = self._planning_module.get_plan(problem_fname)
+        except (NoPlanFoundException, PlannerTimeoutException):
+            # Automatic failure
+            return 0
+        reward = 0
+        goal_literals_set = frozenset(goal.literals)
+        plan_state_end = run_plan(initial_state, plan, self.learned_operators, rand_state)
+        
+        if goal_literals_set.issubset(plan_state_end.literals):
+            reward = 1
+            
+        return reward

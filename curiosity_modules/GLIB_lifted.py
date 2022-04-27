@@ -246,6 +246,8 @@ class GLIBLCuriosityModule(GoalBabblingCuriosityModule):
             # print("Removing goal-action:", new_goal_action)
             self._unseen_goal_actions.remove(new_goal_action)
 
+class GLIBL1CuriosityModule(GLIBLCuriosityModule):
+    _k = 1
 
 class GLIBL2CuriosityModule(GLIBLCuriosityModule):
     _k = 2

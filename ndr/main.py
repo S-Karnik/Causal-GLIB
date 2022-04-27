@@ -154,7 +154,7 @@ def run_test_suite(rule_set, env, outfile=None, num_problems=10, seed_start=1000
                 policy = find_policy("ff_replan", rule_set, env.action_space, 
                     env.observation_space)
                 total_returns = 0
-                outdir = '/tmp'
+                outdir = 'tmp'
                 if render:
                     os.makedirs(outdir, exist_ok=True)
                 returns = run_policy(env, policy, verbose=verbose, render=render, check_reward=False, 

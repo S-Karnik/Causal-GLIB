@@ -18,13 +18,16 @@ class BaseCuriosityModule:
     """Base class for a curiosity module.
     """
     def __init__(self, action_space, observation_space, planning_module,
-                 learned_operators, operator_learning_module, domain_name):
+                 learned_operators, operator_learning_module, domain_name, 
+                 get_all_current_rewards_val_tasks, compute_effects):
         self._action_space = action_space
         self._observation_space = observation_space
         self._planning_module = planning_module
         self._learned_operators = learned_operators
         self._operator_learning_module = operator_learning_module
         self._domain_name = domain_name
+        self._get_all_current_rewards_val_tasks = get_all_current_rewards_val_tasks
+        self._compute_effects = compute_effects
 
         self._action_space.seed(ac.seed)
         self._observation_space.seed(ac.seed)
@@ -62,7 +65,7 @@ class BaseCuriosityModule:
         self._mutex_cache = {}  # need to dump mutex_pairs cache because operators changed
 
     def _create_problem_pddl(self, state, goal, prefix):
-        fname = "/tmp/{}_problem_{}.pddl".format(
+        fname = "tmp/{}_problem_{}.pddl".format(
             prefix, random.randint(0, 9999999))
         objects = state.objects
         all_action_lits = self._action_space.all_ground_literals(state)

@@ -12,6 +12,39 @@ def smooth_curve(x, y):
         mode='same')
     return xsmoo, ysmoo
 
+def plot_itr_runtimes(domain_name, learning_name, all_itr_runtimes, outdir="results/itr_runtimes"):
+    outdir = os.path.join(os.path.dirname(os.path.realpath(__file__)), outdir)
+    outfile = os.path.join(outdir, "{}_{}_{}.png".format(
+        domain_name, learning_name, "itr_times"))
+    plt.figure()
+
+    for curiosity_module in sorted(all_itr_runtimes):
+        itr_runtimes = np.array(all_itr_runtimes[curiosity_module])
+        label = curiosity_module
+        xs = itr_runtimes[0, :, 0]
+        ys = itr_runtimes[:, :, 1]
+        ymins = ys[:, 0]
+        ys = ys - ymins[:, np.newaxis]
+        itr_runtimes_mean = np.mean(ys, axis=0)
+        # ys -= np.min(ys)
+        plt.plot(xs, itr_runtimes_mean, label=label.replace("_", " "))
+        # import ipdb; ipdb.set_trace()
+
+    min_seeds = min(len(x) for x in all_itr_runtimes.values())
+    max_seeds = max(len(x) for x in all_itr_runtimes.values())
+    if min_seeds == max_seeds:
+        title = "{} Domain, {} Learner ({} seeds)".format(
+            domain_name, learning_name, min_seeds)
+    else:
+        title = "{} Domain, {} Learner ({} to {} seeds)".format(
+            domain_name, learning_name, min_seeds, max_seeds)
+
+    plt.title(title)
+    # plt.ylim((-0.1, 1.1))
+    plt.legend(loc="lower right")
+    plt.tight_layout()
+    plt.savefig(outfile, dpi=300)
+    print("Wrote out to {}".format(outfile))
 
 def plot_results(domain_name, learning_name, all_results, outdir="results",
                  smooth=False, dist=False):

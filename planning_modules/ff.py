@@ -23,7 +23,7 @@ class FastForwardPlanner(Planner):
             return actions.pop(0)
         return policy
 
-    def get_plan(self, raw_problem_fname, use_cache=True):
+    def get_plan(self, raw_problem_fname, use_cache=False):
         # If there are no operators yet, we're not going to be able to find a plan
         if not self._learned_operators:
             raise NoPlanFoundException()
@@ -39,6 +39,8 @@ class FastForwardPlanner(Planner):
         if end_time - start_time > 0.9*ac.planner_timeout:
             raise PlannerTimeoutException()
         plan = self._output_to_plan(output)
+        if plan == "asdf":
+            import ipdb; ipdb.set_trace()
         actions = self._plan_to_actions(plan, objects)
         return actions
 
@@ -57,7 +59,9 @@ class FastForwardPlanner(Planner):
         plan = re.findall(r"\d+?: (.+)", output.lower())
         if not plan and "found legal" not in output and \
            "The empty plan solves it" not in output:
-            raise Exception("Plan not found with FF! Error: {}".format(output))
+            print("Plan not found with FF! Error: {}".format(output))
+            return "asdf"
+            # raise Exception("Plan not found with FF! Error: {}".format(output))
         return plan
 
     def _plan_to_actions(self, plan, objects):

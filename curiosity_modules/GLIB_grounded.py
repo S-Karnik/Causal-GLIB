@@ -55,6 +55,15 @@ class GLIBG1CuriosityModule(GoalBabblingCuriosityModule):
         self._last_sampled_action = act
         return goal
 
+    def _sample_goal_k(self, state, k):
+        if not self._unseen_lits_acts:
+            return None
+        num_samples = min(len(self._unseen_lits_acts), k)
+        goals, acts = zip(*[self._unseen_lits_acts[u] for u in self._rand_state.choice(
+            len(self._unseen_lits_acts), size=num_samples, replace=False)])
+        # self._last_sampled_action = act
+        return goals, acts
+
     def _goal_is_valid(self, goal):
         return not (goal is None)
 

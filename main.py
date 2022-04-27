@@ -5,7 +5,7 @@ matplotlib.use("Agg")
 from agent import Agent
 from planning_modules.base_planner import PlannerTimeoutException, \
     NoPlanFoundException
-from plotting import plot_results
+from plotting import plot_results, plot_itr_runtimes
 from settings import AgentConfig as ac
 from settings import EnvConfig as ec
 from settings import GeneralConfig as gc
@@ -82,7 +82,9 @@ class Runner:
         episode_done = True
         episode_time_step = 0
         itrs_on = None
+        itr_times = []
         for itr in range(self.num_train_iters):
+            itr_times.append((itr, time.time()))
             if gc.verbosity > 0:
                 print("\nIteration {} of {}".format(itr, self.num_train_iters))
 
@@ -149,7 +151,7 @@ class Runner:
             itrs_on = self.num_train_iters
         curiosity_avg_time = self.agent.curiosity_time/itrs_on
 
-        return results, curiosity_avg_time
+        return itr_times, results, curiosity_avg_time
 
     def _evaluate_operators(self):
         """Test current operators. Return (solve rate on test suite,
@@ -212,11 +214,13 @@ def _run_single_seed(seed, domain_name, curiosity_name, learning_name):
 
     train_env = gym.make("PDDLEnv{}-v0".format(domain_name))
     train_env.seed(ec.seed)
+    val_env = gym.make("PDDLEnv{}-v0".format(domain_name))
+    val_env.seed(ec.seed)
     agent = Agent(domain_name, train_env.action_space,
                   train_env.observation_space, curiosity_name, learning_name,
-                  planning_module_name=ac.planner_name[domain_name])
+                  planning_module_name=ac.planner_name[domain_name], val_env=val_env)
     test_env = gym.make("PDDLEnv{}Test-v0".format(domain_name))
-    results, curiosity_avg_time = Runner(agent, train_env, test_env, domain_name, curiosity_name).run()
+    itr_times, results, curiosity_avg_time = Runner(agent, train_env, test_env, domain_name, curiosity_name).run()
     with open("results/timings/{}_{}_{}_{}.txt".format(domain_name, curiosity_name, learning_name, seed), "w") as f:
         f.write("{} {} {} {} {}\n".format(domain_name, curiosity_name, learning_name, seed, curiosity_avg_time))
 
@@ -229,8 +233,20 @@ def _run_single_seed(seed, domain_name, curiosity_name, learning_name):
     with open(cache_file, 'wb') as f:
         pickle.dump(results, f)
         print("Dumped results to {}".format(cache_file))
+
+    itr_times_outdir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                          "results/itr_runtimes", domain_name, learning_name, curiosity_name)
+    if not os.path.exists(itr_times_outdir):
+        os.makedirs(itr_times_outdir, exist_ok=True)
+
+    itr_times_cache_file = os.path.join(itr_times_outdir, "{}_{}_{}_{}.pkl".format(
+        domain_name, learning_name, curiosity_name, seed))
+    with open(itr_times_cache_file, 'wb') as f:
+        pickle.dump(itr_times, f)
+        print("Dumped itr_times to {}".format(itr_times_cache_file))
+
     print("\n\n\nFinished single seed in {} seconds".format(time.time()-start))
-    return {curiosity_name: results}
+    return {curiosity_name: results}, {curiosity_name: itr_times}
 
 
 def _main():
@@ -247,6 +263,7 @@ def _main():
 
     for domain_name in ec.domain_name:
         all_results = defaultdict(list)
+        all_itr_runtimes = defaultdict(list)
         for curiosity_name in ac.curiosity_methods_to_run:
             if curiosity_name in ac.cached_results_to_load:
                 for pkl_fname in glob.glob(os.path.join(
@@ -258,18 +275,30 @@ def _main():
                 if curiosity_name not in all_results:
                     print("WARNING: Found no results to load for {}".format(
                         curiosity_name))
+                for pkl_fname in glob.glob(os.path.join(
+                        "results/itr_runtimes/", domain_name, ac.learning_name,
+                        curiosity_name, "*.pkl")):
+                    with open(pkl_fname, "rb") as f:
+                        itr_runtimes = pickle.load(f)
+                    all_itr_runtimes[curiosity_name].append(itr_runtimes)
+                if curiosity_name not in all_itr_runtimes:
+                    print("WARNING: Found no itr_runtimes to load for {}".format(
+                        curiosity_name))
             else:
                 for seed in range(gc.num_seeds):
                     seed = seed+20
                     print("\nRunning curiosity method: {}, with seed: {}\n".format(
                         curiosity_name, seed))
-                    single_seed_results = _run_single_seed(
+                    single_seed_results, single_seed_itr_times = _run_single_seed(
                         seed, domain_name, curiosity_name, ac.learning_name)
                     for cur_name, results in single_seed_results.items():
                         all_results[cur_name].append(results)
+                    for cur_name, itr_times in single_seed_itr_times.items():
+                        all_itr_runtimes[cur_name].append(itr_times)
                     plot_results(domain_name, ac.learning_name, all_results)
                     plot_results(domain_name, ac.learning_name, all_results, dist=True)
-
+                    plot_itr_runtimes(domain_name, ac.learning_name, all_itr_runtimes)
+        plot_itr_runtimes(domain_name, ac.learning_name, all_itr_runtimes)
         plot_results(domain_name, ac.learning_name, all_results)
         plot_results(domain_name, ac.learning_name, all_results, dist=True)
 

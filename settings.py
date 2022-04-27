@@ -36,10 +36,15 @@ class AgentConfig:
     """Agent-specific constants.
     """
     curiosity_methods_to_run = [
-        "GLIB_L2",
+        "GLIB_G1_no_int_causal",
         "GLIB_G1",
-        "oracle",
-        "random",
+        "GLIB_L1",
+        # "GLIB_G1_int",
+        # "GLIB_G1_int_reset_eval",
+        # "random",
+        # "goalbabbling",
+        # "oracle",
+        
     ]
     cached_results_to_load = [
         # "GLIB_L2",
@@ -99,6 +104,24 @@ class AgentConfig:
         "PybulletBlocks" : 10,
         "NDRBlocks" : 25,
     }
+    # TODO: fix these lengths
+    # Max val episode length.
+    max_val_episode_length = {
+        "Blocks": 25,
+        "Glibblocks": 25,
+        "Tsp": 25,
+        "Rearrangement": 25,
+        "Glibrearrangement": 25,
+        "Easygripper": 100,
+        "Doors": 25,
+        "Glibdoors": 25,
+        "Tireworld": 25,
+        "Explodingblocks": 25,
+        "River": 25,
+        "PybulletBlocks" : 25,
+        "NDRBlocks" : 25,
+    }
+
     # Max test episode length.
     max_test_episode_length = {
         "Blocks": 25,
