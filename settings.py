@@ -37,8 +37,8 @@ class AgentConfig:
     """
     curiosity_methods_to_run = [
         "GLIB_G1_no_int_causal",
-        "GLIB_G1",
-        "GLIB_L1",
+        # "GLIB_G1",
+        # "GLIB_L1",
         # "GLIB_G1_int",
         # "GLIB_G1_int_reset_eval",
         # "random",
